@@ -149,7 +149,7 @@ func (c *Connection) Send(ctx context.Context, messageParts ...[]byte) (<-chan M
 		return nil, driver.WithStack(err)
 	}
 	// Prepare for receiving a response
-	m := c.msgStore.Add(msgID)
+	m := c.msgStore.Add(ctx, msgID)
 	responseChan := m.responseChan
 
 	//panic(fmt.Sprintf("chunks: %d, messageParts: %d, first: %s", len(chunks), len(messageParts), hex.EncodeToString(messageParts[0])))

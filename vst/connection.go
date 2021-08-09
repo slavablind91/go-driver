@@ -35,6 +35,9 @@ import (
 	"github.com/arangodb/go-driver/util"
 	"github.com/arangodb/go-driver/vst/protocol"
 	velocypack "github.com/arangodb/go-velocypack"
+
+	"gitlab.stageoffice.ru/UCS-COMMON/errors"
+	"gitlab.stageoffice.ru/UCS-COMMON/gaben"
 )
 
 const (
@@ -60,6 +63,7 @@ type ConnectionConfig struct {
 	Transport protocol.TransportConfig
 	// Cluster configuration settings
 	cluster.ConnectionConfig
+	GabenConfig *gaben.Config
 }
 
 type messageTransport interface {
@@ -98,9 +102,14 @@ func newVSTConnection(endpoint string, config ConnectionConfig) (driver.Connecti
 			tlsConfig = &tls.Config{}
 		}
 	}
+	logger, err := gaben.FromConfig(config.GabenConfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "gaben from config")
+	}
 	c := &vstConnection{
 		endpoint:  *u,
 		transport: protocol.NewTransport(hostAddr, tlsConfig, config.Transport),
+		logger:    logger,
 	}
 	return c, nil
 }
@@ -109,6 +118,7 @@ func newVSTConnection(endpoint string, config ConnectionConfig) (driver.Connecti
 type vstConnection struct {
 	endpoint  url.URL
 	transport *protocol.Transport
+	logger    gaben.Logger
 }
 
 // String returns the endpoint as string
@@ -148,6 +158,7 @@ func (c *vstConnection) do(ctx context.Context, req driver.Request, transport me
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	ctx = gaben.ToContext(ctx, c.logger)
 	vstReq, ok := req.(*vstRequest)
 	if !ok {
 		return nil, driver.WithStack(driver.InvalidArgumentError{Message: "request is not a *vstRequest"})
@@ -173,6 +184,7 @@ func (c *vstConnection) do(ctx context.Context, req driver.Request, transport me
 		}
 	case <-ctx.Done():
 		// Context canceled while waiting here
+		c.logger.Warning("arango driver ctx done when wait message responses", gaben.Error(ctx.Err()))
 		return nil, driver.WithStack(ctx.Err())
 	}
 
@@ -222,7 +234,7 @@ func (c *vstConnection) Unmarshal(data driver.RawObject, result interface{}) err
 			return driver.WithStack(err)
 		}
 	default:
-		return driver.WithStack(fmt.Errorf("Unsupported content type %d", int(ct)))
+		return driver.WithStack(errors.Newf("Unsupported content type %d", int(ct)))
 	}
 	return nil
 }
@@ -239,7 +251,7 @@ func (c *vstConnection) UpdateEndpoints(endpoints []string) error {
 	return nil
 }
 
-// Configure the authentication used for this connection.
+// SetAuthentication the authentication used for this connection.
 func (c *vstConnection) SetAuthentication(auth driver.Authentication) (driver.Connection, error) {
 	var vstAuth vstAuthentication
 	switch auth.Type() {
@@ -252,7 +264,7 @@ func (c *vstConnection) SetAuthentication(auth driver.Authentication) (driver.Co
 		password := auth.Get("password")
 		vstAuth = newJWTAuthentication(userName, password)
 	default:
-		return nil, driver.WithStack(fmt.Errorf("Unsupported authentication type %d", int(auth.Type())))
+		return nil, driver.WithStack(errors.Newf("Unsupported authentication type %d", int(auth.Type())))
 	}
 
 	// Set authentication callback

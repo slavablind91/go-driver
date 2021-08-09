@@ -23,6 +23,7 @@
 package protocol
 
 import (
+	"context"
 	"fmt"
 	"sync"
 )
@@ -54,7 +55,7 @@ func (s *messageStore) Get(id uint64) *Message {
 
 // Add adds a new message to the store with given ID.
 // If the ID is not unique this function will panic.
-func (s *messageStore) Add(id uint64) *Message {
+func (s *messageStore) Add(ctx context.Context, id uint64) *Message {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -65,10 +66,7 @@ func (s *messageStore) Add(id uint64) *Message {
 		panic(fmt.Sprintf("ID %v is not unique", id))
 	}
 
-	m := &Message{
-		ID:           id,
-		responseChan: make(chan Message),
-	}
+	m := newMessage(ctx, id)
 	s.messages[id] = m
 	return m
 }
