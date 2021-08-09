@@ -71,9 +71,9 @@ type messageTransport interface {
 }
 
 // NewConnection creates a new Velocystream connection based on the given configuration settings.
-func NewConnection(config ConnectionConfig) (driver.Connection, error) {
+func NewConnection(logger gaben.Logger, config ConnectionConfig) (driver.Connection, error) {
 	c, err := cluster.NewConnection(config.ConnectionConfig, func(endpoint string) (driver.Connection, error) {
-		conn, err := newVSTConnection(endpoint, config)
+		conn, err := newVSTConnection(logger, endpoint, config)
 		if err != nil {
 			return nil, driver.WithStack(err)
 		}
@@ -86,7 +86,7 @@ func NewConnection(config ConnectionConfig) (driver.Connection, error) {
 }
 
 // newVSTConnection creates a new Velocystream connection for a single endpoint and the remainder of the given configuration settings.
-func newVSTConnection(endpoint string, config ConnectionConfig) (driver.Connection, error) {
+func newVSTConnection(logger gaben.Logger, endpoint string, config ConnectionConfig) (driver.Connection, error) {
 	endpoint = util.FixupEndpointURLScheme(endpoint)
 	u, err := url.Parse(endpoint)
 	if err != nil {
@@ -102,10 +102,7 @@ func newVSTConnection(endpoint string, config ConnectionConfig) (driver.Connecti
 			tlsConfig = &tls.Config{}
 		}
 	}
-	logger, err := gaben.FromConfig(config.GabenConfig)
-	if err != nil {
-		return nil, errors.Wrap(err, "gaben from config")
-	}
+
 	c := &vstConnection{
 		endpoint:  *u,
 		transport: protocol.NewTransport(hostAddr, tlsConfig, config.Transport),

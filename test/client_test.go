@@ -25,9 +25,9 @@ package test
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"log"
 	httplib "net/http"
+	_ "net/http/pprof"
 	"os"
 	"strconv"
 	"strings"
@@ -35,19 +35,18 @@ import (
 	"testing"
 	"time"
 
+	driver "github.com/arangodb/go-driver"
+	"github.com/arangodb/go-driver/http"
+	"github.com/arangodb/go-driver/jwt"
 	"github.com/arangodb/go-driver/util/connection/wrappers"
-
+	"github.com/arangodb/go-driver/vst"
+	"github.com/arangodb/go-driver/vst/protocol"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	_ "net/http/pprof"
-
-	driver "github.com/arangodb/go-driver"
-	"github.com/arangodb/go-driver/http"
-	"github.com/arangodb/go-driver/jwt"
-	"github.com/arangodb/go-driver/vst"
-	"github.com/arangodb/go-driver/vst/protocol"
+	"gitlab.stageoffice.ru/UCS-COMMON/errors"
+	"gitlab.stageoffice.ru/UCS-COMMON/gaben"
 )
 
 var (
@@ -171,7 +170,7 @@ func createConnectionFromEnv(t testEnv) driver.Connection {
 				Version: version,
 			},
 		}
-		conn, err := vst.NewConnection(config)
+		conn, err := vst.NewConnection(gaben.TestingLogger(t), config)
 		if err != nil {
 			t.Fatalf("Failed to create new vst connection: %s", describe(err))
 		}
@@ -348,7 +347,7 @@ func waitUntilEndpointSynchronized(ctx context.Context, c driver.Client, dbname 
 	case up := <-endpointsSynced:
 		return up
 	case <-ctx.Done():
-		return fmt.Errorf("Timeout while synchronizing endpoints")
+		return errors.Newf("Timeout while synchronizing endpoints")
 	}
 }
 
