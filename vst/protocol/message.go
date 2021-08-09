@@ -23,9 +23,12 @@
 package protocol
 
 import (
+	"context"
 	"sort"
 	"sync"
 	"sync/atomic"
+
+	"gitlab.stageoffice.ru/UCS-COMMON/gaben"
 )
 
 // Message is what is send back to the client in response to a request.
@@ -33,11 +36,20 @@ type Message struct {
 	ID   uint64
 	Data []byte
 
+	ctx                context.Context
 	chunksMutex        sync.Mutex
 	chunks             []chunk
 	numberOfChunks     uint32
 	responseChanClosed int32
 	responseChan       chan Message
+}
+
+func newMessage(ctx context.Context, id uint64) *Message {
+	return &Message{
+		ID:           id,
+		responseChan: make(chan Message),
+		ctx:          ctx,
+	}
 }
 
 // closes the response channel if needed.
@@ -55,7 +67,12 @@ func (m *Message) notifyListener() {
 	if atomic.CompareAndSwapInt32(&m.responseChanClosed, 0, 1) {
 		if ch := m.responseChan; ch != nil {
 			m.responseChan = nil
-			ch <- *m
+			select {
+			case <-m.ctx.Done():
+				gaben.Ctx(m.ctx).Warning("arango driver ctx done when notify listener", gaben.Error(m.ctx.Err()))
+			case ch <- *m:
+				gaben.Ctx(m.ctx).Trace("arango driver notify listener")
+			}
 			close(ch)
 		}
 	}

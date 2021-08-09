@@ -72,7 +72,7 @@ type jwtOpenResponse struct {
 	MustChangePassword bool   `json:"must_change_password,omitempty"`
 }
 
-// Prepare is called before the first request of the given connection is made.
+// PrepareFunc is called before the first request of the given connection is made.
 func (a *vstAuthenticationImpl) PrepareFunc(vstConn *vstConnection) func(ctx context.Context, conn *protocol.Connection) error {
 	return func(ctx context.Context, conn *protocol.Connection) error {
 		var authReq velocypack.Slice
